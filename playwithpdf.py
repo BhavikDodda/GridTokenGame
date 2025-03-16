@@ -228,6 +228,7 @@ def movesComb(w,h):
 
 def remove_poss_from_component(canonical_components):
     afterMoves=[]
+    posses=[]
     for i, component in enumerate(canonical_components):
         component_set = set(component)
         min_x = min(x for x, y in component)
@@ -237,7 +238,6 @@ def remove_poss_from_component(canonical_components):
         
         possibilities = movesComb(max_x - min_x + 1, max_y - min_y + 1)
         
-        
         for poss in possibilities:
             poss_set = set(poss)
             if poss_set.issubset(component_set):
@@ -246,8 +246,9 @@ def remove_poss_from_component(canonical_components):
                 ccano[i] = list(diff)
                 CCANO=CanonicalFromComps(ccano)
                 afterMoves.append(CCANO)
+                posses.append((i,poss_set))
                 #print(reconstruct_grid(CCANO, grid_size=(7,7)))
-    return afterMoves
+    return posses,afterMoves
 F_strategies=[]
 import sys
 def F_or_NF(canonical_components):
@@ -286,10 +287,10 @@ def F_or_NF(canonical_components):
                             Fset.append(canonical_components)
                             F_strategies.append([i,poss_set])
                             foundalready=1
-        
+                            
         if(foundalready):
-            return "Fset"
-           
+            return "Fset"            
+                    
         if(canonical_components not in NFset):
             NFset.append(canonical_components)
             return "NFset"
@@ -304,8 +305,27 @@ def F_or_NF(canonical_components):
 
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
+def split_into_columns(data, num_columns=3):
+    """Splits a list into `num_columns` columns."""
+    column_size = (len(data) + num_columns - 1) // num_columns
+    return [data[i * column_size:(i + 1) * column_size] for i in range(num_columns)]
 
-def visualize_configurations_to_pdf(configurations, grid_size=(7, 7), pdf_filename="configurations.pdf", rows_per_page=6, configs_per_row=4):
+def format_text(gameplays, indicesOfNewConfigs):
+    """Formats gameplays and indicesOfNewConfigs into 3 columns using spaces."""
+    columns_gameplays = split_into_columns(gameplays, num_columns=3)
+    columns_indices = split_into_columns(indicesOfNewConfigs, num_columns=3)
+    
+    text = ""
+    for row in range(len(columns_gameplays[0])):
+        for col in range(3):
+            if row < len(columns_gameplays[col]):
+                # Format each entry with fixed width
+                entry = f"{str(columns_gameplays[col][row]).replace(' ','')}: Config {columns_indices[col][row]}    "
+                text += f"{entry:<20}" 
+        text += "\n\n"
+    return text
+import math
+def visualize_configurations_to_pdf(configurations, configurations2, grid_size=(7, 7), pdf_filename="configurations.pdf", rows_per_page=6, configs_per_row=4):
     """
     Visualizes all configurations in a grid layout and saves them as a multi-page PDF.
     
@@ -318,36 +338,141 @@ def visualize_configurations_to_pdf(configurations, grid_size=(7, 7), pdf_filena
     """
     num_configs = len(configurations)
     configs_per_page = rows_per_page * configs_per_row  # Number of configurations per page
-    
+    num_configs2 = len(configurations2)
     # Create a PDF file
     with PdfPages(pdf_filename) as pdf:
+        for page_num, start_idx in enumerate(range(0, 1, 1)):
+            end_idx = min(start_idx + configs_per_page, num_configs)
+            page_configs = NFset[0:1]
+            config=page_configs[0]
+            
+
+            # Create a figure for this page
+            fig, ax = plt.subplots(1, 1, figsize=(20,40))
+            
+            
+            grid, shifts = reconstruct_grid(config, grid_size=grid_size)
+            ax.text(0.5, 1.1, "Play with PDF", transform=ax.transAxes, fontsize=40, ha='center', va='bottom')
+            # Plot the grid
+            ax.imshow(grid, cmap='binary', vmin=0, vmax=1)
+            ax.set_title(f"Config {start_idx + 1}", fontsize=16)
+            ax.set_xticks(range(grid_size[1]))
+            ax.set_yticks(range(grid_size[0]))
+            ax.grid(which='both', color='black', linestyle='-', linewidth=1)
+            ax.tick_params(axis='both', which='major', labelsize=24)
+
+            print("config")
+            print(config)
+            moves,newconfigs=remove_poss_from_component(config)
+            gameplays=[[(x_+shifts[moves[i][0]][0],y_+shifts[moves[i][0]][1]) for (x_,y_) in sorted(list(moves[i][1]))] for i in range(len(moves))]
+            print(gameplays)
+            indicesOfNewConfigs=[Fset.index(newconfigs[i])+1+num_configs  for i in range(len(newconfigs))]
+            print(indicesOfNewConfigs)
+            text = format_text(gameplays, indicesOfNewConfigs)
+            ax.text(0.5, -0.1, text, transform=ax.transAxes, fontsize=25, ha='center', va='top', wrap=True)
+                
+            
+            
+            plt.tight_layout(rect=[0.1, 0.1, 0.9, 0.95])
+            
+            # Save the figure to the PDF
+            pdf.savefig(fig)
+            plt.close()
         for page_num, start_idx in enumerate(range(0, num_configs, configs_per_page)):
             end_idx = min(start_idx + configs_per_page, num_configs)
             page_configs = configurations[start_idx:end_idx]
             
             # Calculate the number of rows for this page
             num_rows = (len(page_configs) + configs_per_row - 1) // configs_per_row
-            
+            print(num_rows)
+            ###
+            maxlines=0
+            for _, configg in enumerate(page_configs):
+                movess,_=remove_poss_from_component(configg)
+                maxlines=max(maxlines,math.ceil(len(movess)/3))
+            print("max: "+str(maxlines))
+
             # Create a figure for this page
-            fig, axes = plt.subplots(num_rows, configs_per_row, figsize=(20, 5 * num_rows))
+            fig, axes = plt.subplots(num_rows, configs_per_row, figsize=(20,31+1*maxlines))
             axes = axes.flatten()  # Flatten the axes array for easy iteration
             
             for idx, config in enumerate(page_configs):
                 ax = axes[idx]
-                grid, _ = reconstruct_grid(config, grid_size=grid_size)
+                grid, shifts = reconstruct_grid(config, grid_size=grid_size)
                 
                 # Plot the grid
                 ax.imshow(grid, cmap='binary', vmin=0, vmax=1)
-                ax.set_title(f"Config {start_idx + idx + 1}")
+                ax.set_title(f"Config {start_idx + idx + 2}")
                 ax.set_xticks(range(grid_size[1]))
                 ax.set_yticks(range(grid_size[0]))
                 ax.grid(which='both', color='black', linestyle='-', linewidth=1)
+                print("config")
+                print(config)
+                moves,newconfigs=remove_poss_from_component(config)
+                gameplays=[[(x_+shifts[moves[i][0]][0],y_+shifts[moves[i][0]][1]) for (x_,y_) in sorted(list(moves[i][1]))] for i in range(len(moves))]
+                print(gameplays)
+                indicesOfNewConfigs=[Fset.index(newconfigs[i])+1+num_configs  for i in range(len(newconfigs))]
+                print(indicesOfNewConfigs)
+                # Add text below the subplot
+                text = format_text(gameplays, indicesOfNewConfigs)
+                ax.text(0.5, -0.1, text, transform=ax.transAxes, fontsize=8, ha='center', va='top', wrap=True)
+                
             
             # Hide unused subplots
             for j in range(idx + 1, len(axes)):
                 axes[j].axis('off')
             
-            plt.tight_layout()
+            plt.tight_layout(rect=[0, 0.05, 1, 0.95])
+            
+            # Save the figure to the PDF
+            pdf.savefig(fig)
+            plt.close()
+        for page_num, start_idx in enumerate(range(0, num_configs2, configs_per_page)):
+            end_idx = min(start_idx + configs_per_page, num_configs2)
+            page_configs = configurations2[start_idx:end_idx]
+            page_strategies = F_strategies[start_idx:end_idx]
+            
+            # Calculate the number of rows for this page
+            num_rows = (len(page_configs) + configs_per_row - 1) // configs_per_row
+            
+            # Create a figure for this page
+            fig, axes = plt.subplots(num_rows, configs_per_row, figsize=(20,40))
+            axes = axes.flatten()  # Flatten the axes array for easy iteration
+            
+            for idx, (config, strategy) in enumerate(zip(page_configs, page_strategies)):
+                ax = axes[idx]
+                grid, shifts = reconstruct_grid(config, grid_size=grid_size)
+                
+                # Plot the grid
+                ax.imshow(grid, cmap='binary', vmin=0, vmax=1)
+                ax.set_title(f"Config {start_idx + idx + 1 +num_configs}")
+                ax.set_xticks(range(grid_size[1]))
+                ax.set_yticks(range(grid_size[0]))
+                ax.grid(which='both', color='black', linestyle='-', linewidth=1)
+                
+                # Extract the component index and positions to highlight
+                component_index, positions_to_highlight = strategy
+                shift_x, shift_y = shifts[component_index]  # Get the shift for this component
+                
+                # Highlight the strategy positions in green (mapped to actual grid positions)
+                for x, y in positions_to_highlight:
+                    actual_x = x + shift_x
+                    actual_y = y + shift_y
+                    if 0 <= actual_x < grid_size[0] and 0 <= actual_y < grid_size[1]:  # Ensure coordinates are within bounds
+                        ax.add_patch(plt.Rectangle((actual_y - 0.5, actual_x - 0.5), 1, 1, fill=True, color='green', alpha=0.7))
+                
+
+                config[component_index]=list(filter(lambda x: x not in list(positions_to_highlight), config[component_index]))
+                canndeleted=CanonicalFromComps(config)
+                indexOfNewConfig=NFset.index(canndeleted)
+                ax.text(0.5, -0.1, f"Go to config: {indexOfNewConfig+1}", transform=ax.transAxes, fontsize=8, ha='center', va='top', wrap=True)
+
+            
+            # Hide unused subplots
+            for j in range(idx + 1, len(axes)):
+                axes[j].axis('off')
+            
+            plt.tight_layout(rect=[0, 0.05, 1, 0.95])
             
             # Save the figure to the PDF
             pdf.savefig(fig)
@@ -389,7 +514,7 @@ def visualize_configurations_with_strategies(Fset, F_strategies, grid_size=(7, 7
             num_rows = (len(page_configs) + configs_per_row - 1) // configs_per_row
             
             # Create a figure for this page
-            fig, axes = plt.subplots(num_rows, configs_per_row, figsize=(20, 5 * num_rows))
+            fig, axes = plt.subplots(num_rows, configs_per_row, figsize=(25, 20 * num_rows))
             axes = axes.flatten()  # Flatten the axes array for easy iteration
             
             for idx, (config, strategy) in enumerate(zip(page_configs, page_strategies)):
@@ -441,5 +566,9 @@ print(F_strategies)
 print("NFset")
 print(NFset)
 print("F or NF:",aorb)
-visualize_configurations_to_pdf(NFset, grid_size=(7, 7), pdf_filename=os.path.join(script_dir, "NF_configurations.pdf"))
-visualize_configurations_with_strategies(Fset, F_strategies, grid_size=(7, 7), pdf_filename=os.path.join(script_dir, "F_configurations_with_strategies.pdf"), configs_per_row=4)
+
+Fset=Fset[::-1]
+F_strategies=F_strategies[::-1]
+NFset=NFset[::-1]
+FandNF=Fset+NFset
+visualize_configurations_to_pdf(NFset[1:],Fset, grid_size=(7, 7), pdf_filename=os.path.join(script_dir, "playwithpdf.pdf"))
