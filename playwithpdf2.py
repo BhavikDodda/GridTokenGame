@@ -325,6 +325,8 @@ def format_text(gameplays, indicesOfNewConfigs):
         text += "\n"
     return text+"\n\n\n"
 import math
+import pickle
+import os
 def visualize_configurations_to_pdf(configurations, configurations2, grid_size=(7, 7), pdf_filename="configurations.pdf", rows_per_page=2, configs_per_row=2):
     """
     Visualizes all configurations in a grid layout and saves them as a multi-page PDF.
@@ -336,10 +338,30 @@ def visualize_configurations_to_pdf(configurations, configurations2, grid_size=(
         rows_per_page: Number of rows to display per page (default is 6).
         configs_per_row: Number of configurations to display per row (default is 4).
     """
+    pdfdataexists=0
+
+    # Check if the pickle file exists
+    if os.path.exists('pdfgame_data.pkl'):
+        pdfdataexists=1
+        # Load from the pickle file
+        with open('pdfgame_data.pkl', 'rb') as file:
+            loaded_data = pickle.load(file)
+
+        # Access the saved objects
+        movesList = loaded_data['movesList']
+        newconfigsList = loaded_data['newconfigsList']
+        canndeletedList = loaded_data['canndeletedList']
+
+        print("Data loaded from pdfgame_data.pkl")
+    movesList0=[]
+    newconfigsList0=[]
+    canndeletedList0=[]
+
     num_configs = len(configurations)
     configs_per_page = rows_per_page * configs_per_row  # Number of configurations per page
     num_configs2 = len(configurations2)
     # Create a PDF file
+    globali=0
     with PdfPages(pdf_filename) as pdf:
         for page_num, start_idx in enumerate(range(0, 1, 1)):
             end_idx = min(start_idx + configs_per_page, num_configs)
@@ -384,7 +406,7 @@ def visualize_configurations_to_pdf(configurations, configurations2, grid_size=(
             
             # Calculate the number of rows for this page
             num_rows = (len(page_configs) + configs_per_row - 1) // configs_per_row
-            print(num_rows)
+            #print(num_rows)
             ###
 
             # Create a figure for this page
@@ -404,7 +426,15 @@ def visualize_configurations_to_pdf(configurations, configurations2, grid_size=(
                 ax.tick_params(axis='both', which='major', labelsize=24)
                 print("config")
                 print(config)
-                moves,newconfigs=remove_poss_from_component(config)
+                if pdfdataexists:
+                    moves=movesList[globali]
+                    newconfigs=newconfigsList[globali]
+                    globali+=1
+                else:
+                    moves,newconfigs=remove_poss_from_component(config)
+                    movesList0.append(moves)
+                    newconfigsList0.append(newconfigs)
+                
                 gameplays=[[(x_+shifts[moves[i][0]][0],y_+shifts[moves[i][0]][1]) for (x_,y_) in sorted(list(moves[i][1]))] for i in range(len(moves))]
                 print(gameplays)
                 indicesOfNewConfigs=[Fset.index(newconfigs[i])+1+num_configs  for i in range(len(newconfigs))]
@@ -412,7 +442,10 @@ def visualize_configurations_to_pdf(configurations, configurations2, grid_size=(
                 # Add text below the subplot
                 text = format_text(gameplays, indicesOfNewConfigs)
                 ax.text(0.5, -0.15, text, transform=ax.transAxes, fontsize=20, ha='center', va='top', wrap=True, linespacing=2.1)
-                
+            if(start_idx==range(0, num_configs, configs_per_page)[-1]):
+                ax = axes[-1]
+                ax.text(0.5,0.5, "You Lose! Go back to page 1!", transform=ax.transAxes, fontsize=50, ha='center', va='center', wrap=True, linespacing=2.1)
+
             
             # Hide unused subplots
             for j in range(idx + 1, len(axes)):
@@ -423,6 +456,7 @@ def visualize_configurations_to_pdf(configurations, configurations2, grid_size=(
             # Save the figure to the PDF
             pdf.savefig(fig)
             plt.close()
+        globali=0
         for page_num, start_idx in enumerate(range(0, num_configs2, configs_per_page)):
             end_idx = min(start_idx + configs_per_page, num_configs2)
             page_configs = configurations2[start_idx:end_idx]
@@ -458,9 +492,13 @@ def visualize_configurations_to_pdf(configurations, configurations2, grid_size=(
                     if 0 <= actual_x < grid_size[0] and 0 <= actual_y < grid_size[1]:  # Ensure coordinates are within bounds
                         ax.add_patch(plt.Rectangle((actual_y - 0.5, actual_x - 0.5), 1, 1, fill=True, color='green', alpha=0.7))
                 
-
-                config[component_index]=list(filter(lambda x: x not in list(positions_to_highlight), config[component_index]))
-                canndeleted=CanonicalFromComps(config)
+                if pdfdataexists:
+                    canndeleted=canndeletedList[globali]
+                    globali+=1
+                else:
+                    config[component_index]=list(filter(lambda x: x not in list(positions_to_highlight), config[component_index]))
+                    canndeleted=CanonicalFromComps(config)
+                    canndeletedList0.append(canndeleted)
                 indexOfNewConfig=NFset.index(canndeleted)
                 ax.text(0.5, -0.1, f"Go to config: {indexOfNewConfig+1}, page: {math.floor((indexOfNewConfig-1)/4)+2}", transform=ax.transAxes, fontsize=30, ha='center', va='top', wrap=True)
 
@@ -474,6 +512,14 @@ def visualize_configurations_to_pdf(configurations, configurations2, grid_size=(
             # Save the figure to the PDF
             pdf.savefig(fig)
             plt.close()
+    if (pdfdataexists==0):
+        pdfdata_to_save = {
+        'movesList': movesList0,
+        'newconfigsList': newconfigsList0,
+        'canndeletedList': canndeletedList0
+        }
+        with open('pdfgame_data.pkl', 'wb') as file:
+            pickle.dump(pdfdata_to_save, file)
 
 import os
 script_dir = os.path.dirname(__file__)
@@ -552,20 +598,48 @@ def visualize_configurations_with_strategies(Fset, F_strategies, grid_size=(7, 7
 #Backwards
 GRID=[[1 for i in range(4)] for i in range(4)]
 
-combss=Canonical(GRID)
-can_combss=CanonicalFromComps(combss)
-print(can_combss)
-aorb=F_or_NF(can_combss)
-print("Fset")
-print(Fset)
-print("F_strategies")
-print(F_strategies)
-print("NFset")
-print(NFset)
-print("F or NF:",aorb)
+
+import pickle
+import os
+
+# Check if the pickle file exists
+if os.path.exists('game_data.pkl'):
+    # Load from the pickle file
+    with open('game_data.pkl', 'rb') as file:
+        loaded_data = pickle.load(file)
+
+    # Access the saved objects
+    NFset = loaded_data['NFset']
+    Fset = loaded_data['Fset']
+    F_strategies = loaded_data['F_strategies']
+
+    print("Data loaded from game_data.pkl")
+else:
+    combss=Canonical(GRID)
+    can_combss=CanonicalFromComps(combss)
+    print(can_combss)
+    aorb=F_or_NF(can_combss)
+    print("Fset")
+    print(Fset)
+    print("F_strategies")
+    print(F_strategies)
+    print("NFset")
+    print(NFset)
+    print("F or NF:",aorb)
+
+    data_to_save = {
+        'NFset': NFset,
+        'Fset': Fset,
+        'F_strategies': F_strategies
+    }
+    with open('game_data.pkl', 'wb') as file:
+        pickle.dump(data_to_save, file)
+
+    print("Data computed and saved to game_data.pkl")
 
 Fset=Fset[::-1]
 F_strategies=F_strategies[::-1]
 NFset=NFset[::-1]
 FandNF=Fset+NFset
+
 visualize_configurations_to_pdf(NFset[1:],Fset, grid_size=(7, 7), pdf_filename=os.path.join(script_dir, "playwithpdf2.pdf"))
