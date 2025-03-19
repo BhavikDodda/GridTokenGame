@@ -1,3 +1,5 @@
+"""Version 3"""
+
 import numpy as np
 N=4
 grid=[[0 for i in range(N)]for j in range(N)]
@@ -310,6 +312,19 @@ def split_into_columns(data, num_columns=3):
     column_size = (len(data) + num_columns - 1) // num_columns
     return [data[i * column_size:(i + 1) * column_size] for i in range(num_columns)]
 
+def pageFromConfig(confignum):
+    return (math.floor((confignum-2+(3 if confignum>len(NFset) else 0))/4)+2)
+
+def stategyTextNotation(gameplaymove):
+    gameplayText=gameplaymove
+    gameplaylen=len(gameplayText)
+    if(gameplaylen>1):
+        if(gameplayText[0][0]==gameplayText[1][0]):
+            gameplayText=f"[{gameplayText[0]} → {gameplaylen}]"
+        else:
+            gameplayText=f"[{gameplayText[0]} ↓ {gameplaylen}]"
+    return gameplayText
+
 def format_text(gameplays, indicesOfNewConfigs):
     """Formats gameplays and indicesOfNewConfigs into 3 columns using spaces."""
     columns_gameplays = split_into_columns(gameplays, num_columns=3)
@@ -320,7 +335,9 @@ def format_text(gameplays, indicesOfNewConfigs):
         for col in range(3):
             if row < len(columns_gameplays[col]):
                 # Format each entry with fixed width
-                entry = f"{str(columns_gameplays[col][row]).replace(' ','')}: Config {columns_indices[col][row]}    "
+                gameplayText=stategyTextNotation(columns_gameplays[col][row])
+                confignum=columns_indices[col][row]
+                entry = f"{str(gameplayText).replace(' ','')}: Config {confignum}, Pg {pageFromConfig(confignum)}    "
                 text += f"{entry:<20}" 
         text += "\n"
     return text+"\n\n\n"
@@ -437,7 +454,7 @@ def visualize_configurations_to_pdf(configurations, configurations2, grid_size=(
                 
                 gameplays=[[(x_+shifts[moves[i][0]][0],y_+shifts[moves[i][0]][1]) for (x_,y_) in sorted(list(moves[i][1]))] for i in range(len(moves))]
                 print(gameplays)
-                indicesOfNewConfigs=[Fset.index(newconfigs[i])+1+num_configs  for i in range(len(newconfigs))]
+                indicesOfNewConfigs=[Fset.index(newconfigs[i])+1+(num_configs+1)  for i in range(len(newconfigs))]
                 print(indicesOfNewConfigs)
                 # Add text below the subplot
                 text = format_text(gameplays, indicesOfNewConfigs)
@@ -475,7 +492,7 @@ def visualize_configurations_to_pdf(configurations, configurations2, grid_size=(
                 
                 # Plot the grid
                 ax.imshow(grid, cmap='binary', vmin=0, vmax=1)
-                ax.set_title(f"Config {start_idx + idx + 1 +num_configs}", fontsize=35)
+                ax.set_title(f"Config {start_idx + idx + 1 +(num_configs+1)}", fontsize=35)
                 ax.set_xticks(range(grid_size[1]))
                 ax.set_yticks(range(grid_size[0]))
                 ax.grid(which='both', color='black', linestyle='-', linewidth=1)
@@ -500,7 +517,8 @@ def visualize_configurations_to_pdf(configurations, configurations2, grid_size=(
                     canndeleted=CanonicalFromComps(config)
                     canndeletedList0.append(canndeleted)
                 indexOfNewConfig=NFset.index(canndeleted)
-                ax.text(0.5, -0.1, f"Go to config: {indexOfNewConfig+1}, page: {math.floor((indexOfNewConfig-1)/4)+2}", transform=ax.transAxes, fontsize=30, ha='center', va='top', wrap=True)
+                pdfstrategytext=stategyTextNotation([(x_+shift_x,y_+shift_y) for (x_,y_) in sorted(positions_to_highlight)])
+                ax.text(0.5, -0.1, f"PDF's move: {pdfstrategytext}\nGo to config: {indexOfNewConfig+1}, page: {pageFromConfig(indexOfNewConfig+1)}", transform=ax.transAxes, fontsize=30, ha='center', va='top', wrap=True)
 
             
             # Hide unused subplots
@@ -642,4 +660,4 @@ F_strategies=F_strategies[::-1]
 NFset=NFset[::-1]
 FandNF=Fset+NFset
 
-visualize_configurations_to_pdf(NFset[1:],Fset, grid_size=(7, 7), pdf_filename=os.path.join(script_dir, "playwithpdf2.pdf"))
+visualize_configurations_to_pdf(NFset[1:],Fset, grid_size=(7, 7), pdf_filename=os.path.join(script_dir, "pdfs\playwithpdf3.pdf"))
